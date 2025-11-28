@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"HexDiff/pkg/cli"
+	"github.com/Sky-ey/HexDiff/pkg/cli"
 )
 
 const (

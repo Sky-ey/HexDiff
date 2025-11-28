@@ -8,7 +8,7 @@ import (
 	"io"
 	"os"
 
-	"HexDiff/pkg/diff"
+	"github.com/Sky-ey/HexDiff/pkg/diff"
 )
 
 // Serializer 补丁序列化器

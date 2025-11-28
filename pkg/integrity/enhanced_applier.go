@@ -137,7 +137,7 @@ func (ea *EnhancedApplier) ApplyPatchWithIntegrity(sourceFilePath, patchFilePath
 	}
 
 	// 第三步：应用补丁操作
-	result, err := ea.applyPatchOperations(sourceFilePath, patchFilePath, targetFilePath, patchData)
+	result, err := ea.applyPatchOperations(sourceFilePath, patchFilePath, targetFilePath)
 	if err != nil {
 		// 尝试恢复
 		if ea.config.EnableRecovery {
@@ -189,7 +189,7 @@ func (ea *EnhancedApplier) preValidationAndBackup(sourceFilePath, targetFilePath
 }
 
 // applyPatchOperations 应用补丁操作
-func (ea *EnhancedApplier) applyPatchOperations(sourceFilePath, patchFilePath, targetFilePath string, patchData interface{}) (*EnhancedApplyResult, error) {
+func (ea *EnhancedApplier) applyPatchOperations(sourceFilePath, patchFilePath, targetFilePath string) (*EnhancedApplyResult, error) {
 	result := &EnhancedApplyResult{
 		SourceFilePath:    sourceFilePath,
 		PatchFilePath:     patchFilePath,

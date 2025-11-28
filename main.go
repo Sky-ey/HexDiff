@@ -5,9 +5,9 @@ import (
 	"log"
 	"os"
 
-	"HexDiff/pkg/diff"
-	"HexDiff/pkg/integrity"
-	"HexDiff/pkg/patch"
+	"github.com/Sky-ey/HexDiff/pkg/diff"
+	"github.com/Sky-ey/HexDiff/pkg/integrity"
+	"github.com/Sky-ey/HexDiff/pkg/patch"
 )
 
 func main() {

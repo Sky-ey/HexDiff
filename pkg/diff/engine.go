@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	hexhash "HexDiff/pkg/hash"
+	hexhash "github.com/Sky-ey/HexDiff/pkg/hash"
 )
 
 // Engine 差异检测引擎

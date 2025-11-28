@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"HexDiff/pkg/diff"
+	"github.com/Sky-ey/HexDiff/pkg/diff"
 )
 
 // Generator 补丁生成器

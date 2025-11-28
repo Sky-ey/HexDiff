@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"HexDiff/pkg/metadata"
+	"github.com/Sky-ey/HexDiff/pkg/metadata"
 )
 
 // EnhancedPatchHeader 增强补丁文件头

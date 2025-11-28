@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"HexDiff/pkg/integrity"
+	"github.com/Sky-ey/HexDiff/pkg/integrity"
 )
 
 // Applier 补丁应用器

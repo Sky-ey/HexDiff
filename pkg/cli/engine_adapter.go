@@ -5,9 +5,9 @@ import (
 	"os"
 	"time"
 
-	"HexDiff/pkg/diff"
-	"HexDiff/pkg/integrity"
-	"HexDiff/pkg/patch"
+	"github.com/Sky-ey/HexDiff/pkg/diff"
+	"github.com/Sky-ey/HexDiff/pkg/integrity"
+	"github.com/Sky-ey/HexDiff/pkg/patch"
 )
 
 // EngineAdapter CLI引擎适配器

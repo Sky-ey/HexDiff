@@ -1,4 +1,4 @@
-module HexDiff
+module github.com/Sky-ey/HexDiff
 
 go 1.25
 
