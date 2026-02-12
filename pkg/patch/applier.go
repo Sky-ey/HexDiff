@@ -250,6 +250,11 @@ func (a *Applier) applyOperations(sourceFilePath string, patchFile *PatchFile, t
 
 // applyOperation 应用单个操作
 func (a *Applier) applyOperation(sourceFile, targetFile *os.File, op *PatchOperation, patchData []byte, result *ApplyResult) error {
+	// 定位到目标文件的指定偏移量
+	if _, err := targetFile.Seek(int64(op.Offset), 0); err != nil {
+		return fmt.Errorf("seek target file: %w", err)
+	}
+
 	switch op.Type {
 	case 0: // Copy操作
 		return a.applyCopyOperation(sourceFile, targetFile, op, result)

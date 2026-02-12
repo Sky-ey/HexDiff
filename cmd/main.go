@@ -21,7 +21,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 创建CLI应用程序
+	// 创建 CLI 应用程序
 	app := cli.NewApp(AppName, AppVersion, AppDescription, engine)
 
 	// 创建错误处理器

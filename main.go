@@ -190,15 +190,39 @@ func handlePatch() {
 		log.Fatalf("创建引擎失败: %v", err)
 	}
 
-	// 创建补丁生成器（使用无压缩）
-	generator := patch.NewGenerator(engine, patch.CompressionNone)
+	// 检查文件大小，决定使用哪种补丁生成器
+	oldStat, err := os.Stat(oldFile)
+	if err != nil {
+		log.Fatalf("获取旧文件信息失败: %v", err)
+	}
+
+	newStat, err := os.Stat(newFile)
+	if err != nil {
+		log.Fatalf("获取新文件信息失败: %v", err)
+	}
+
+	fileSize := oldStat.Size()
+	if newStat.Size() > fileSize {
+		fileSize = newStat.Size()
+	}
+
+	// 如果文件大于500MB，使用流式补丁生成器
+	const largeFileThreshold = 500 * 1024 * 1024 // 500MB
+	var patchInfo *patch.PatchInfo
 
 	fmt.Printf("正在生成补丁文件 '%s'...\n", patchFile)
-	fmt.Printf("源文件: %s\n", oldFile)
-	fmt.Printf("目标文件: %s\n", newFile)
+	fmt.Printf("源文件: %s (%.2f GB)\n", oldFile, float64(oldStat.Size())/(1024*1024*1024))
+	fmt.Printf("目标文件: %s (%.2f GB)\n", newFile, float64(newStat.Size())/(1024*1024*1024))
 
-	// 生成补丁
-	patchInfo, err := generator.GeneratePatch(oldFile, newFile, patchFile)
+	if fileSize > largeFileThreshold {
+		fmt.Println("检测到大文件，使用流式补丁生成器...")
+		streamingGenerator := patch.NewStreamingPatchGenerator(engine, patch.CompressionNone)
+		patchInfo, err = streamingGenerator.GeneratePatchStreaming(oldFile, newFile, patchFile)
+	} else {
+		generator := patch.NewGenerator(engine, patch.CompressionNone)
+		patchInfo, err = generator.GeneratePatch(oldFile, newFile, patchFile)
+	}
+
 	if err != nil {
 		log.Fatalf("生成补丁失败: %v", err)
 	}

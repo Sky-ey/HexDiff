@@ -188,11 +188,13 @@ func (e *Engine) generateDeltaWithRollingHash(newFile *os.File, signature *Signa
 
 	// 处理剩余的未匹配数据
 	if len(unmatchedData) > 0 {
+		dataCopy := make([]byte, len(unmatchedData))
+		copy(dataCopy, unmatchedData)
 		delta.AddOperation(Operation{
 			Type:   OpInsert,
 			Offset: unmatchedStart,
 			Size:   len(unmatchedData),
-			Data:   unmatchedData,
+			Data:   dataCopy,
 		})
 	}
 
@@ -216,11 +218,13 @@ func (e *Engine) processBlock(blockData []byte, offset int64, signature *Signatu
 	if matchedBlock != nil {
 		// 找到匹配，先处理未匹配的数据
 		if len(*unmatchedData) > 0 {
+			dataCopy := make([]byte, len(*unmatchedData))
+			copy(dataCopy, *unmatchedData)
 			delta.AddOperation(Operation{
 				Type:   OpInsert,
 				Offset: *unmatchedStart,
 				Size:   len(*unmatchedData),
-				Data:   *unmatchedData,
+				Data:   dataCopy,
 			})
 			*unmatchedData = (*unmatchedData)[:0] // 清空缓冲区
 		}
