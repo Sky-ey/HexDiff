@@ -131,14 +131,14 @@ func (l *Logger) log(level LogLevel, levelStr, format string, args ...interface{
 
 	timestamp := time.Now().Format(l.timeFormat)
 	message := fmt.Sprintf(format, args...)
-	
+
 	var output string
 	if l.colors {
 		color := getColorCode(level)
-		output = fmt.Sprintf("%s %s %s%s\033[0m %s\n", 
+		output = fmt.Sprintf("%s %s %s%s\033[0m %s\n",
 			timestamp, l.prefix, color, levelStr, message)
 	} else {
-		output = fmt.Sprintf("%s %s [%s] %s\n", 
+		output = fmt.Sprintf("%s %s [%s] %s\n",
 			timestamp, l.prefix, levelStr, message)
 	}
 
@@ -153,13 +153,13 @@ func (l *Logger) logWithColor(level LogLevel, levelStr, color, format string, ar
 
 	timestamp := time.Now().Format(l.timeFormat)
 	message := fmt.Sprintf(format, args...)
-	
+
 	var output string
 	if l.colors {
-		output = fmt.Sprintf("%s %s %s%s\033[0m %s\n", 
+		output = fmt.Sprintf("%s %s %s%s\033[0m %s\n",
 			timestamp, l.prefix, color, levelStr, message)
 	} else {
-		output = fmt.Sprintf("%s %s [%s] %s\n", 
+		output = fmt.Sprintf("%s %s [%s] %s\n",
 			timestamp, l.prefix, levelStr, message)
 	}
 
@@ -214,13 +214,13 @@ func isTerminal() bool {
 	if os.Getenv("TERM") == "" {
 		return false
 	}
-	
+
 	// 检查stdout是否为终端
 	stat, err := os.Stdout.Stat()
 	if err != nil {
 		return false
 	}
-	
+
 	return (stat.Mode() & os.ModeCharDevice) != 0
 }
 

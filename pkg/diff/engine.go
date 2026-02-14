@@ -136,6 +136,10 @@ func (e *Engine) GenerateDelta(oldFilePath, newFilePath string) (*Delta, error) 
 		return nil, err
 	}
 
+	// 优化操作：合并连续的相同类型操作
+	optimizer := NewOptimizer(nil)
+	delta = optimizer.OptimizeDelta(delta)
+
 	return delta, nil
 }
 

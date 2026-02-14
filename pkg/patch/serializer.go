@@ -33,8 +33,12 @@ func (s *Serializer) SerializeDelta(delta *diff.Delta, sourceChecksum [32]byte, 
 	patchFile.Header.SourceChecksum = sourceChecksum
 	patchFile.Header.TargetChecksum = delta.Checksum
 
-	// 转换操作并收集插入数据
+	// 转换操作并收集插入数据，过滤掉空操作
 	for _, op := range delta.Operations {
+		if op.Size == 0 {
+			continue
+		}
+
 		patchOp := PatchOperation{
 			Offset: uint64(op.Offset),
 			Size:   uint32(op.Size),
