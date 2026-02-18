@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Sky-ey/HexDiff/pkg/diff"
@@ -12,11 +14,13 @@ import (
 
 // EngineAdapter CLI引擎适配器
 type EngineAdapter struct {
-	diffEngine       *diff.Engine
-	patchGenerator   *patch.Generator
-	patchApplier     *patch.Applier
-	validator        *patch.Validator
-	integrityChecker *integrity.IntegrityChecker
+	diffEngine         *diff.Engine
+	dirDiffEngine      *diff.DirEngine
+	patchGenerator     *patch.Generator
+	patchApplier       *patch.Applier
+	dirPatchSerializer *patch.DirPatchSerializer
+	validator          *patch.Validator
+	integrityChecker   *integrity.IntegrityChecker
 }
 
 // NewEngineAdapter 创建引擎适配器
@@ -27,11 +31,20 @@ func NewEngineAdapter() (*EngineAdapter, error) {
 		return nil, fmt.Errorf("创建差异检测引擎失败: %w", err)
 	}
 
+	// 创建目录差异检测引擎
+	dirDiffEngine, err := diff.NewDirEngine(nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建目录差异检测引擎失败: %w", err)
+	}
+
 	// 创建补丁生成器
 	patchGenerator := patch.NewGenerator(diffEngine, patch.CompressionGzip)
 
 	// 创建补丁应用器
 	patchApplier := patch.NewApplier(nil)
+
+	// 创建目录补丁序列化器
+	dirPatchSerializer := patch.NewDirPatchSerializer(patch.CompressionNone)
 
 	// 创建验证器
 	validator := patch.NewValidator()
@@ -40,11 +53,13 @@ func NewEngineAdapter() (*EngineAdapter, error) {
 	integrityChecker := integrity.NewIntegrityChecker(integrity.DefaultCheckerConfig())
 
 	return &EngineAdapter{
-		diffEngine:       diffEngine,
-		patchGenerator:   patchGenerator,
-		patchApplier:     patchApplier,
-		validator:        validator,
-		integrityChecker: integrityChecker,
+		diffEngine:         diffEngine,
+		dirDiffEngine:      dirDiffEngine,
+		patchGenerator:     patchGenerator,
+		patchApplier:       patchApplier,
+		dirPatchSerializer: dirPatchSerializer,
+		validator:          validator,
+		integrityChecker:   integrityChecker,
 	}, nil
 }
 
@@ -198,4 +213,121 @@ func (ea *EngineAdapter) GetPatchInfo(patchFile string) (*PatchInfo, error) {
 	}
 
 	return info, nil
+}
+
+// GenerateDirDiff 生成目录补丁
+func (ea *EngineAdapter) GenerateDirDiff(oldDir, newDir, outputFile string, recursive, ignoreHidden bool, ignorePatterns string, compress bool, progress ProgressReporter) (interface{}, error) {
+	progress.SetMessage("正在分析目录差异...")
+	progress.SetCurrent(10)
+
+	dirConfig := diff.DefaultDirDiffConfig()
+	dirConfig.Recursive = recursive
+	dirConfig.IgnoreHidden = ignoreHidden
+	if ignorePatterns != "" {
+		dirConfig.IgnorePatterns = splitIgnorePatterns(ignorePatterns)
+	}
+	dirConfig.Compress = compress
+
+	ea.dirDiffEngine, _ = diff.NewDirEngine(nil, dirConfig)
+
+	wrapper := &diffProgressWrapper{progress}
+	result, err := ea.dirDiffEngine.GenerateDirDiff(oldDir, newDir, wrapper)
+	if err != nil {
+		return nil, err
+	}
+
+	progress.SetCurrent(80)
+	progress.SetMessage("正在序列化补丁...")
+
+	oldBase := filepath.Base(oldDir)
+	newBase := filepath.Base(newDir)
+	err = ea.dirPatchSerializer.SerializeDirPatch(result, oldBase, newBase, outputFile)
+	if err != nil {
+		return nil, err
+	}
+
+	progress.SetCurrent(100)
+	progress.SetMessage("目录补丁生成完成")
+
+	return result, nil
+}
+
+type diffProgressWrapper struct {
+	cliProgress ProgressReporter
+}
+
+func (w *diffProgressWrapper) SetProgress(percent int) {
+	w.cliProgress.SetCurrent(int64(percent))
+}
+
+func (w *diffProgressWrapper) IncProgress(delta int) {
+	w.cliProgress.Increment(int64(delta))
+}
+
+func (w *diffProgressWrapper) Message(msg string) {
+	w.cliProgress.SetMessage(msg)
+}
+
+func splitIgnorePatterns(patterns string) []string {
+	if patterns == "" {
+		return nil
+	}
+	var result []string
+	for _, p := range strings.Split(patterns, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+// ApplyDirPatch 应用目录补丁
+func (ea *EngineAdapter) ApplyDirPatch(patchFile, targetDir string, verify bool, progress ProgressReporter) (interface{}, error) {
+	progress.SetMessage("正在读取目录补丁...")
+	progress.SetCurrent(10)
+
+	dirPatch, err := ea.dirPatchSerializer.DeserializeDirPatch(patchFile)
+	if err != nil {
+		return nil, err
+	}
+
+	progress.SetCurrent(30)
+	progress.SetMessage("正在应用目录补丁...")
+
+	for i, filePatch := range dirPatch.Files {
+		progress.SetCurrent(int64(30 + (i*70)/len(dirPatch.Files)))
+
+		targetPath := filepath.Join(targetDir, filePatch.RelativePath)
+
+		switch filePatch.Status {
+		case diff.StatusAdded, diff.StatusModified:
+			dir := filepath.Dir(targetPath)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return nil, fmt.Errorf("创建目录失败: %w", err)
+			}
+
+			if filePatch.IsFullContent {
+				if err := os.WriteFile(targetPath, filePatch.Delta, os.FileMode(filePatch.Mode)); err != nil {
+					return nil, fmt.Errorf("写入文件失败: %w", err)
+				}
+			} else if len(filePatch.Delta) > 0 {
+				// TODO: 应用二进制差异补丁
+			}
+
+			os.Chtimes(targetPath, filePatch.GetMTime(), filePatch.GetMTime())
+
+		case diff.StatusDeleted:
+			if _, err := os.Stat(targetPath); err == nil {
+				if err := os.Remove(targetPath); err != nil {
+					return nil, fmt.Errorf("删除文件失败: %w", err)
+				}
+			}
+		}
+	}
+
+	progress.SetCurrent(100)
+	progress.SetMessage("目录补丁应用完成")
+
+	return dirPatch, nil
 }

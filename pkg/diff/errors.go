@@ -7,6 +7,7 @@ var (
 	ErrInvalidBlockSize    = errors.New("invalid block size: must be between 64 and 65536 bytes")
 	ErrInvalidWindowSize   = errors.New("invalid window size: must be between 8 and block size")
 	ErrInvalidMaxMemory    = errors.New("invalid max memory: must be at least 1MB")
+	ErrInvalidWorkerCount  = errors.New("invalid worker count: must be between 1 and 32")
 	ErrFileNotFound        = errors.New("file not found")
 	ErrFileReadError       = errors.New("file read error")
 	ErrFileWriteError      = errors.New("file write error")
@@ -15,6 +16,8 @@ var (
 	ErrInvalidOperation    = errors.New("invalid operation")
 	ErrMemoryLimitExceeded = errors.New("memory limit exceeded")
 	ErrCorruptedData       = errors.New("corrupted data detected")
+	ErrDirectoryNotFound   = errors.New("directory not found")
+	ErrInvalidDirectory    = errors.New("invalid directory")
 )
 
 // DiffError 差异检测错误类型

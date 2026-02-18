@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/Sky-ey/HexDiff/pkg/patch"
 )
 
 // Command 命令接口
@@ -310,18 +312,60 @@ func (c *ApplyCommand) Execute(args []string) error {
 	patchFile := args[0]
 	targetFile := args[1]
 
-	// 验证输入文件
+	// 验证补丁文件
 	if err := c.validateInputFile(patchFile); err != nil {
 		return WrapError(ErrFileRead, "补丁文件错误", err)
 	}
-	if err := c.validateInputFile(targetFile); err != nil {
-		return WrapError(ErrFileRead, "目标文件错误", err)
+
+	// 检查是否是目录补丁
+	isDirPatch, err := c.isDirectoryPatch(patchFile)
+	if err != nil {
+		return WrapError(ErrFileRead, "检查补丁类型失败", err)
 	}
 
-	// 确定输出文件
+	if isDirPatch {
+		return c.applyDirectoryPatch(patchFile, targetFile)
+	}
+
+	// 应用单文件补丁
+	return c.applySingleFilePatch(patchFile, targetFile)
+}
+
+func (c *ApplyCommand) isDirectoryPatch(patchFile string) (bool, error) {
+	isDir, err := patch.IsDirPatch(patchFile)
+	if err != nil {
+		return false, err
+	}
+	return isDir, nil
+}
+
+func (c *ApplyCommand) applyDirectoryPatch(patchFile, targetDir string) error {
+	c.app.logger.Info("检测到目录补丁，正在应用...")
+	c.app.logger.Info("补丁文件: %s", patchFile)
+	c.app.logger.Info("目标目录: %s", targetDir)
+
+	progress := c.app.progress.NewTask("应用目录补丁", 100)
+	defer progress.Finish()
+
+	result, err := c.app.engine.ApplyDirPatch(patchFile, targetDir, true, progress)
+	if err != nil {
+		return WrapError(ErrPatchApplication, "应用目录补丁失败", err)
+	}
+
+	_ = result
+	c.app.logger.Success("目录补丁应用完成: %s", targetDir)
+	return nil
+}
+
+func (c *ApplyCommand) applySingleFilePatch(patchFile, targetFile string) error {
 	outputFile := c.outputFile
 	if outputFile == "" {
 		outputFile = targetFile + ".new"
+	}
+
+	// 验证目标文件
+	if err := c.validateInputFile(targetFile); err != nil {
+		return WrapError(ErrFileRead, "目标文件错误", err)
 	}
 
 	// 显示操作信息
@@ -663,3 +707,108 @@ const (
 	CompressionGzip
 	CompressionLZ4
 )
+
+// DirDiffCommand 目录差异检测命令
+type DirDiffCommand struct {
+	app          *App
+	outputFile   string
+	recursive    bool
+	ignoreHidden bool
+	ignore       string
+	compress     bool
+	verbose      bool
+}
+
+// NewDirDiffCommand 创建目录差异检测命令
+func NewDirDiffCommand(app *App) *DirDiffCommand {
+	return &DirDiffCommand{
+		app:       app,
+		recursive: true,
+		compress:  true,
+	}
+}
+
+func (c *DirDiffCommand) Name() string {
+	return "dir-diff"
+}
+
+func (c *DirDiffCommand) Description() string {
+	return "比较两个目录并生成补丁"
+}
+
+func (c *DirDiffCommand) Usage() string {
+	return "hexdiff dir-diff [options] <old-dir> <new-dir>"
+}
+
+func (c *DirDiffCommand) SetFlags(fs *flag.FlagSet) {
+	fs.StringVar(&c.outputFile, "o", "", "输出补丁文件路径")
+	fs.StringVar(&c.outputFile, "output", "", "输出补丁文件路径")
+	fs.BoolVar(&c.recursive, "r", true, "递归遍历子目录")
+	fs.BoolVar(&c.recursive, "recursive", true, "递归遍历子目录")
+	fs.BoolVar(&c.ignoreHidden, "ignore-hidden", false, "忽略隐藏文件")
+	fs.StringVar(&c.ignore, "ignore", "", "忽略的文件模式（逗号分隔）")
+	fs.BoolVar(&c.compress, "c", true, "压缩补丁文件")
+	fs.BoolVar(&c.compress, "compress", true, "压缩补丁文件")
+	fs.BoolVar(&c.verbose, "v", false, "详细输出")
+	fs.BoolVar(&c.verbose, "verbose", false, "详细输出")
+}
+
+func (c *DirDiffCommand) Execute(args []string) error {
+	if len(args) < 2 {
+		return ErrInvalidArgumentf("需要两个目录参数: <old-dir> <new-dir>")
+	}
+
+	oldDir := args[0]
+	newDir := args[1]
+
+	if err := c.validateDirectory(oldDir); err != nil {
+		return WrapError(ErrFileRead, "旧目录错误", err)
+	}
+	if err := c.validateDirectory(newDir); err != nil {
+		return WrapError(ErrFileRead, "新目录错误", err)
+	}
+
+	outputFile := c.outputFile
+	if outputFile == "" {
+		outputFile = fmt.Sprintf("%s_to_%s.dir.patch",
+			filepath.Base(oldDir), filepath.Base(newDir))
+	}
+
+	c.app.logger.Info("开始生成目录补丁...")
+	c.app.logger.Info("旧目录: %s", oldDir)
+	c.app.logger.Info("新目录: %s", newDir)
+	c.app.logger.Info("输出文件: %s", outputFile)
+
+	progress := c.app.progress.NewTask("生成目录补丁", 100)
+	defer progress.Finish()
+
+	result, err := c.app.engine.GenerateDirDiff(oldDir, newDir, outputFile, c.recursive, !c.ignoreHidden, c.ignore, c.compress, progress)
+	if err != nil {
+		return WrapError(ErrPatchGeneration, "生成目录补丁失败", err)
+	}
+
+	c.showDirDiffResult(result)
+
+	c.app.logger.Success("目录补丁生成完成: %s", outputFile)
+	return nil
+}
+
+func (c *DirDiffCommand) validateDirectory(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ErrFileNotFoundf("目录不存在: %s", path)
+		}
+		return WrapError(ErrFileRead, "无法访问目录", err)
+	}
+
+	if !info.IsDir() {
+		return ErrInvalidArgumentf("路径不是目录: %s", path)
+	}
+
+	return nil
+}
+
+func (c *DirDiffCommand) showDirDiffResult(result interface{}) {
+	c.app.logger.Info("目录差异统计:")
+}

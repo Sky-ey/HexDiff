@@ -23,7 +23,9 @@ type App struct {
 type Engine interface {
 	GenerateSignature(inputFile, outputFile string, blockSize int, progress ProgressReporter) error
 	GeneratePatch(oldFile, newFile, outputFile, signature string, compress bool, progress ProgressReporter) error
+	GenerateDirDiff(oldDir, newDir, outputFile string, recursive, ignoreHidden bool, ignorePatterns string, compress bool, progress ProgressReporter) (interface{}, error)
 	ApplyPatch(patchFile, targetFile, outputFile string, verify bool, progress ProgressReporter) error
+	ApplyDirPatch(patchFile, targetDir string, verify bool, progress ProgressReporter) (interface{}, error)
 	ValidatePatch(patchFile string, progress ProgressReporter) (*ValidationResult, error)
 	GetPatchInfo(patchFile string) (*PatchInfo, error)
 }
@@ -53,6 +55,7 @@ func NewApp(name, version, description string, engine Engine) *App {
 func (app *App) registerDefaultCommands() {
 	app.registry.Register(NewSignatureCommand(app))
 	app.registry.Register(NewDiffCommand(app))
+	app.registry.Register(NewDirDiffCommand(app))
 	app.registry.Register(NewApplyCommand(app))
 	app.registry.Register(NewValidateCommand(app))
 	app.registry.Register(NewInfoCommand(app))
