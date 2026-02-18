@@ -1,3 +1,5 @@
+//go:build !windows
+
 package performance
 
 import (
@@ -62,13 +64,31 @@ func DefaultIOConfig() *IOConfig {
 	}
 }
 
+// MmapAccessor 内存映射访问接口
+type MmapAccessor interface {
+	ReadAt(offset int64, size int) ([]byte, error)
+	Close() error
+}
+
+// OptimizedReader 优化的读取器
+type OptimizedReader struct {
+	file         *os.File
+	optimizer    *IOOptimizer
+	buffer       []byte
+	filePos      int64
+	fileSize     int64
+	mmapData     []byte
+	mmapAccessor MmapAccessor
+	useMmap      bool
+}
+
 // NewIOOptimizer 创建新的I/O优化器
 func NewIOOptimizer(config *IOConfig) *IOOptimizer {
 	if config == nil {
 		config = DefaultIOConfig()
 	}
 
-	io := &IOOptimizer{
+	opt := &IOOptimizer{
 		config:     config,
 		bufferPool: NewBufferPool(config.BufferSize),
 		memoryPool: NewMemoryPool(),
@@ -79,26 +99,15 @@ func NewIOOptimizer(config *IOConfig) *IOOptimizer {
 
 	// 初始化预读缓存
 	if config.EnableReadAhead {
-		io.readAhead = NewReadAheadCache(config.ReadAheadSize)
+		opt.readAhead = NewReadAheadCache(config.ReadAheadSize)
 	}
 
 	// 初始化写缓冲区
 	if config.EnableWriteCache {
-		io.writeBuffer = NewWriteBuffer(config.WriteBufferSize, config.SyncInterval)
+		opt.writeBuffer = NewWriteBuffer(config.WriteBufferSize, config.SyncInterval)
 	}
 
-	return io
-}
-
-// OptimizedReader 优化的读取器
-type OptimizedReader struct {
-	file      *os.File
-	optimizer *IOOptimizer
-	buffer    []byte
-	filePos   int64
-	fileSize  int64
-	mmapData  []byte
-	useMmap   bool
+	return opt
 }
 
 // NewOptimizedReader 创建优化的读取器
