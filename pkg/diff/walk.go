@@ -238,13 +238,13 @@ func ProcessDirDiff(result *DirDiffResult, diffEngine *Engine, config *DirDiffCo
 			bytesMutex.Unlock()
 
 			if progress != nil {
-				progress.IncProgress(int(delta))
 				totalBytes := result.TotalBytesToProcess()
 				if totalBytes > 0 {
 					percent := int(float64(current) / float64(totalBytes) * 100)
 					if percent > 100 {
 						percent = 100
 					}
+					progress.SetProgress(percent)
 					progress.Message(fmt.Sprintf("处理中: %s / %s", formatBytes(current), formatBytes(totalBytes)))
 				}
 			}

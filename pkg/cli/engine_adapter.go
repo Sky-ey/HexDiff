@@ -309,7 +309,8 @@ func (ea *EngineAdapter) GenerateDirDiff(oldDir, newDir, outputFile string, recu
 	}
 
 	if totalBytes > 0 {
-		progress.SetCurrent(10 + totalBytes)
+		progress.SetTotal(totalBytes)
+		progress.SetCurrent(totalBytes)
 	}
 	progress.SetMessage("目录补丁生成完成")
 
@@ -326,6 +327,10 @@ func (w *diffProgressWrapper) SetProgress(percent int) {
 
 func (w *diffProgressWrapper) IncProgress(delta int) {
 	w.cliProgress.Increment(int64(delta))
+}
+
+func (w *diffProgressWrapper) SetProgressBytes(bytes int64) {
+	w.cliProgress.Increment(int64(bytes))
 }
 
 func (w *diffProgressWrapper) Message(msg string) {
@@ -357,7 +362,7 @@ func (ea *EngineAdapter) ApplyDirPatch(patchFile, targetDir string, verify bool,
 	}
 
 	progress.SetMessage("正在应用目录补丁...")
-	progress.SetCurrent(30)
+	progress.SetCurrent(10)
 
 	var totalBytes int64
 
