@@ -385,3 +385,58 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+func (a *Applier) ApplyDelta(sourceFilePath string, deltaData []byte, targetFilePath string) error {
+	serializer := NewSerializer(CompressionNone)
+	patchFile, err := serializer.DeserializeFromData(deltaData)
+	if err != nil {
+		return fmt.Errorf("deserialize delta: %w", err)
+	}
+
+	sourceChecksum := patchFile.Header.SourceChecksum
+	isZeroChecksum := true
+	for _, b := range sourceChecksum {
+		if b != 0 {
+			isZeroChecksum = false
+			break
+		}
+	}
+
+	if !isZeroChecksum {
+		if err := a.verifySourceFile(sourceFilePath, patchFile.Header.SourceChecksum); err != nil {
+			return fmt.Errorf("verify source file: %w", err)
+		}
+	}
+
+	tempFile, err := a.createTempFile(targetFilePath)
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	defer os.Remove(tempFile)
+
+	_, err = a.applyOperations(sourceFilePath, patchFile, tempFile)
+	if err != nil {
+		return fmt.Errorf("apply operations: %w", err)
+	}
+
+	targetChecksum := patchFile.Header.TargetChecksum
+	isZeroChecksum = true
+	for _, b := range targetChecksum {
+		if b != 0 {
+			isZeroChecksum = false
+			break
+		}
+	}
+
+	if !isZeroChecksum && a.config.VerifyTarget {
+		if err := a.verifyTargetFile(tempFile, patchFile.Header.TargetChecksum); err != nil {
+			return fmt.Errorf("verify target file: %w", err)
+		}
+	}
+
+	if err := a.atomicReplace(tempFile, targetFilePath); err != nil {
+		return fmt.Errorf("atomic replace: %w", err)
+	}
+
+	return nil
+}

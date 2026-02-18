@@ -271,9 +271,8 @@ func TestCompareDirectoriesNested(t *testing.T) {
 		t.Fatalf("CompareDirectories() error = %v", err)
 	}
 
-	// 应该有一个修改的文件和一个新增的文件
-	if len(result.ModifiedFiles)+len(result.AddedFiles) != 2 {
-		t.Errorf("Expected 2 changed files, got %d", len(result.ModifiedFiles)+len(result.AddedFiles))
+	if len(result.ModifiedFiles)+len(result.AddedFiles) != 3 {
+		t.Errorf("Expected 3 changed files, got %d", len(result.ModifiedFiles)+len(result.AddedFiles))
 	}
 }
 

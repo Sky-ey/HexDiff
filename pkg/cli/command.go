@@ -344,7 +344,7 @@ func (c *ApplyCommand) applyDirectoryPatch(patchFile, targetDir string) error {
 	c.app.logger.Info("补丁文件: %s", patchFile)
 	c.app.logger.Info("目标目录: %s", targetDir)
 
-	progress := c.app.progress.NewTask("应用目录补丁", 100)
+	progress := c.app.progress.NewTask("应用目录补丁", 0)
 	defer progress.Finish()
 
 	result, err := c.app.engine.ApplyDirPatch(patchFile, targetDir, true, progress)
@@ -598,7 +598,17 @@ func (c *InfoCommand) Execute(args []string) error {
 
 	c.app.logger.Info("读取补丁文件信息...")
 
-	// 获取补丁信息
+	// 检查是否是目录补丁
+	isDirPatch, err := patch.IsDirPatch(patchFile)
+	if err != nil {
+		return WrapError(ErrFileRead, "检查补丁类型失败", err)
+	}
+
+	if isDirPatch {
+		return c.showDirPatchInfo(patchFile)
+	}
+
+	// 获取单文件补丁信息
 	info, err := c.app.engine.GetPatchInfo(patchFile)
 	if err != nil {
 		return WrapError(ErrFileRead, "读取补丁信息失败", err)
@@ -606,6 +616,52 @@ func (c *InfoCommand) Execute(args []string) error {
 
 	// 显示信息
 	c.showPatchInfo(info)
+
+	return nil
+}
+
+func (c *InfoCommand) showDirPatchInfo(patchFile string) error {
+	info, err := c.app.engine.GetDirPatchInfo(patchFile)
+	if err != nil {
+		return WrapError(ErrFileRead, "读取目录补丁信息失败", err)
+	}
+
+	c.app.logger.Info("目录补丁信息:")
+	c.app.logger.Info("  版本: %d", info.Version)
+	c.app.logger.Info("  旧目录: %s", info.OldDir)
+	c.app.logger.Info("  新目录: %s", info.NewDir)
+	c.app.logger.Info("  总文件数: %d", info.FileCount)
+	c.app.logger.Info("  新增文件: %d", info.AddedFiles)
+	c.app.logger.Info("  删除文件: %d", info.DeletedFiles)
+	c.app.logger.Info("  修改文件: %d", info.ModifiedFiles)
+	c.app.logger.Info("  未改变文件: %d", info.UnchangedFiles)
+	c.app.logger.Info("  补丁大小: %s", formatFileSize(info.PatchSize))
+
+	if c.verbose {
+		c.app.logger.Info("  创建时间: %s", info.CreatedAt.Format("2006-01-02 15:04:05"))
+	}
+
+	if c.verbose || info.AddedFiles > 0 || info.ModifiedFiles > 0 || info.DeletedFiles > 0 {
+		c.app.logger.Info("")
+		if len(info.AddedFileList) > 0 {
+			c.app.logger.Info("  新增文件列表:")
+			for _, f := range info.AddedFileList {
+				c.app.logger.Info("    + %s", f)
+			}
+		}
+		if len(info.ModifiedFileList) > 0 {
+			c.app.logger.Info("  修改文件列表:")
+			for _, f := range info.ModifiedFileList {
+				c.app.logger.Info("    M %s", f)
+			}
+		}
+		if len(info.DeletedFileList) > 0 {
+			c.app.logger.Info("  删除文件列表:")
+			for _, f := range info.DeletedFileList {
+				c.app.logger.Info("    - %s", f)
+			}
+		}
+	}
 
 	return nil
 }
@@ -708,6 +764,23 @@ const (
 	CompressionLZ4
 )
 
+// DirPatchInfo 目录补丁信息
+type DirPatchInfo struct {
+	Version          uint16
+	OldDir           string
+	NewDir           string
+	FileCount        int
+	AddedFiles       int
+	DeletedFiles     int
+	ModifiedFiles    int
+	UnchangedFiles   int
+	PatchSize        int64
+	CreatedAt        time.Time
+	AddedFileList    []string
+	DeletedFileList  []string
+	ModifiedFileList []string
+}
+
 // DirDiffCommand 目录差异检测命令
 type DirDiffCommand struct {
 	app          *App
@@ -779,7 +852,7 @@ func (c *DirDiffCommand) Execute(args []string) error {
 	c.app.logger.Info("新目录: %s", newDir)
 	c.app.logger.Info("输出文件: %s", outputFile)
 
-	progress := c.app.progress.NewTask("生成目录补丁", 100)
+	progress := c.app.progress.NewTask("生成目录补丁", 0)
 	defer progress.Finish()
 
 	result, err := c.app.engine.GenerateDirDiff(oldDir, newDir, outputFile, c.recursive, !c.ignoreHidden, c.ignore, c.compress, progress)

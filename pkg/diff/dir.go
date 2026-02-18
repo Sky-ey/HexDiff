@@ -55,6 +55,28 @@ type DirDiffResult struct {
 	ChangedFiles   int                  // 改变的文件数
 }
 
+// TotalBytesToProcess 计算需要处理的总字节数
+func (r *DirDiffResult) TotalBytesToProcess() int64 {
+	var total int64
+
+	for _, f := range r.AddedFiles {
+		if f.NewEntry != nil {
+			total += f.NewEntry.Size
+		}
+	}
+
+	for _, f := range r.ModifiedFiles {
+		if f.OldEntry != nil {
+			total += f.OldEntry.Size
+		}
+		if f.NewEntry != nil {
+			total += f.NewEntry.Size
+		}
+	}
+
+	return total
+}
+
 // FileDiff 单个文件的差异
 type FileDiff struct {
 	RelativePath string     // 相对路径
@@ -91,8 +113,10 @@ func DefaultDirDiffConfig() *DirDiffConfig {
 	}
 }
 
-// Validate 验证配置参数
 func (c *DirDiffConfig) Validate() error {
+	if c.BlockSize == 0 {
+		c.BlockSize = DefaultBlockSize
+	}
 	if c.WorkerCount < 1 || c.WorkerCount > 32 {
 		return ErrInvalidWorkerCount
 	}

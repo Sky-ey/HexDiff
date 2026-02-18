@@ -99,6 +99,10 @@ func shouldIgnore(path string, patterns []string) bool {
 			}
 		}
 
+		if strings.HasPrefix(base, pattern) {
+			return true
+		}
+
 		if base == pattern || strings.HasPrefix(path, pattern+"/") || path == pattern {
 			return true
 		}
@@ -213,24 +217,74 @@ func ProcessDirDiff(result *DirDiffResult, diffEngine *Engine, config *DirDiffCo
 	fileChan := make(chan *FileDiff, config.WorkerCount*2)
 	errChan := make(chan error, 1)
 	doneChan := make(chan struct{})
+	progressChan := make(chan int64, config.WorkerCount*2)
+
+	if progress != nil {
+		totalBytes := result.TotalBytesToProcess()
+		if totalBytes > 0 {
+			progress.SetProgress(0)
+			progress.Message(fmt.Sprintf("准备处理 %s", formatBytes(totalBytes)))
+		}
+	}
+
+	var processedBytes int64
+	var bytesMutex sync.Mutex
+
+	go func() {
+		for delta := range progressChan {
+			bytesMutex.Lock()
+			processedBytes += delta
+			current := processedBytes
+			bytesMutex.Unlock()
+
+			if progress != nil {
+				progress.IncProgress(int(delta))
+				totalBytes := result.TotalBytesToProcess()
+				if totalBytes > 0 {
+					percent := int(float64(current) / float64(totalBytes) * 100)
+					if percent > 100 {
+						percent = 100
+					}
+					progress.Message(fmt.Sprintf("处理中: %s / %s", formatBytes(current), formatBytes(totalBytes)))
+				}
+			}
+		}
+	}()
 
 	go func() {
 		for diff := range fileChan {
+			var fileSize int64
+
 			if diff.Status == StatusModified {
+				if diff.OldEntry != nil {
+					fileSize += diff.OldEntry.Size
+				}
+				if diff.NewEntry != nil {
+					fileSize += diff.NewEntry.Size
+				}
+
 				delta, err := diffEngine.GenerateDelta(diff.OldEntry.AbsPath, diff.NewEntry.AbsPath)
 				if err != nil {
 					errChan <- fmt.Errorf("generate delta for %s: %w", diff.RelativePath, err)
+					wg.Done()
 					continue
 				}
 				diff.Delta = delta
 			} else if diff.Status == StatusAdded {
+				if diff.NewEntry != nil {
+					fileSize = diff.NewEntry.Size
+				}
+
 				data, err := os.ReadFile(diff.NewEntry.AbsPath)
 				if err != nil {
 					errChan <- fmt.Errorf("read new file %s: %w", diff.RelativePath, err)
+					wg.Done()
 					continue
 				}
 				diff.PatchData = data
 			}
+
+			progressChan <- fileSize
 			wg.Done()
 		}
 		close(doneChan)
@@ -241,8 +295,14 @@ func ProcessDirDiff(result *DirDiffResult, diffEngine *Engine, config *DirDiffCo
 		fileChan <- diff
 	}
 
+	for _, diff := range result.AddedFiles {
+		wg.Add(1)
+		fileChan <- diff
+	}
+
 	close(fileChan)
 	wg.Wait()
+	close(progressChan)
 
 	select {
 	case err := <-errChan:
@@ -251,7 +311,7 @@ func ProcessDirDiff(result *DirDiffResult, diffEngine *Engine, config *DirDiffCo
 	}
 
 	if progress != nil {
-		progress.SetProgress(100)
+		progress.Message("完成")
 	}
 
 	return nil
@@ -262,4 +322,17 @@ type ProgressReporter interface {
 	SetProgress(percent int)
 	IncProgress(delta int)
 	Message(msg string)
+}
+
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }

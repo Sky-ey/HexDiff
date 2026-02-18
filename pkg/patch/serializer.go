@@ -171,6 +171,50 @@ func (s *Serializer) DeserializePatch(inputPath string) (*PatchFile, error) {
 	return patchFile, nil
 }
 
+func (s *Serializer) DeserializeFromData(data []byte) (*PatchFile, error) {
+	reader := bytes.NewReader(data)
+
+	headerData := make([]byte, HeaderSize)
+	if _, err := io.ReadFull(reader, headerData); err != nil {
+		return nil, fmt.Errorf("read header: %w", err)
+	}
+
+	header := &PatchHeader{}
+	if err := header.Unmarshal(headerData); err != nil {
+		return nil, fmt.Errorf("parse header: %w", err)
+	}
+
+	patchFile := &PatchFile{
+		Header:     header,
+		Operations: make([]PatchOperation, header.OperationCount),
+	}
+
+	for i := uint32(0); i < header.OperationCount; i++ {
+		opData := make([]byte, OperationSize)
+		if _, err := io.ReadFull(reader, opData); err != nil {
+			return nil, fmt.Errorf("read operation %d: %w", i, err)
+		}
+
+		if err := patchFile.Operations[i].Unmarshal(opData); err != nil {
+			return nil, fmt.Errorf("parse operation %d: %w", i, err)
+		}
+	}
+
+	remainingData, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("read remaining data: %w", err)
+	}
+
+	if len(remainingData) > 0 {
+		patchFile.Data, err = s.decompressData(remainingData, header.Compression)
+		if err != nil {
+			return nil, fmt.Errorf("decompress data: %w", err)
+		}
+	}
+
+	return patchFile, nil
+}
+
 // decompressData 解压数据
 func (s *Serializer) decompressData(compressedData []byte, compression CompressionType) ([]byte, error) {
 	switch compression {

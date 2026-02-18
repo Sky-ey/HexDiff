@@ -3,11 +3,11 @@ package patch
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	hexdiff "github.com/Sky-ey/HexDiff/pkg/diff"
 )
@@ -71,26 +71,50 @@ func (s *DirPatchSerializer) SerializeDirPatch(result *hexdiff.DirDiffResult, ol
 
 func (s *DirPatchSerializer) serializeDelta(delta *hexdiff.Delta) []byte {
 	buf := &bytes.Buffer{}
-	writer := bufio.NewWriter(buf)
 
-	writer.Write([]byte{0x48, 0x45, 0x58, 0x44})
+	currentDataOffset := uint32(0)
+	dataBuf := &bytes.Buffer{}
 
-	binary.Write(writer, binary.LittleEndian, delta.SourceSize)
-	binary.Write(writer, binary.LittleEndian, delta.TargetSize)
-	writer.Write(delta.Checksum[:])
+	operations := make([]PatchOperation, len(delta.Operations))
+	for i, op := range delta.Operations {
+		patchOp := PatchOperation{
+			Type:      uint8(op.Type),
+			Size:      uint32(op.Size),
+			Offset:    uint64(op.Offset),
+			SrcOffset: uint64(op.SrcOffset),
+		}
 
-	binary.Write(writer, binary.LittleEndian, uint32(len(delta.Operations)))
+		if op.Type == 1 {
+			patchOp.DataOffset = currentDataOffset
+			dataBuf.Write(op.Data)
+			currentDataOffset += uint32(len(op.Data))
+		}
 
-	for _, op := range delta.Operations {
-		writer.WriteByte(uint8(op.Type))
-		binary.Write(writer, binary.LittleEndian, op.Offset)
-		binary.Write(writer, binary.LittleEndian, int64(op.Size))
-		binary.Write(writer, binary.LittleEndian, op.SrcOffset)
-		binary.Write(writer, binary.LittleEndian, uint32(len(op.Data)))
-		writer.Write(op.Data)
+		operations[i] = patchOp
 	}
 
-	writer.Flush()
+	dataOffset := uint32(HeaderSize + uint32(len(delta.Operations))*OperationSize)
+
+	header := &PatchHeader{
+		Magic:          0x48455844,
+		Version:        1,
+		Compression:    CompressionNone,
+		SourceSize:     delta.SourceSize,
+		TargetSize:     delta.TargetSize,
+		TargetChecksum: delta.Checksum,
+		OperationCount: uint32(len(delta.Operations)),
+		DataOffset:     dataOffset,
+		Timestamp:      time.Now().Unix(),
+	}
+
+	buf.Write(header.Marshal())
+
+	for _, op := range operations {
+		buf.Write(op.Marshal())
+	}
+
+	buf.Write(dataBuf.Bytes())
+
 	return buf.Bytes()
 }
 

@@ -1,3 +1,5 @@
+//go:build !windows
+
 package patch
 
 import (
@@ -41,7 +43,6 @@ func NewMappedFile(filePath string, readOnly bool) (*MappedFile, error) {
 
 	size := fileInfo.Size()
 	if size == 0 {
-		// 空文件不需要映射
 		return &MappedFile{
 			file:   file,
 			data:   nil,
@@ -50,7 +51,6 @@ func NewMappedFile(filePath string, readOnly bool) (*MappedFile, error) {
 		}, nil
 	}
 
-	// 执行内存映射
 	data, err := syscall.Mmap(int(file.Fd()), 0, int(size), prot, syscall.MAP_SHARED)
 	if err != nil {
 		file.Close()
@@ -87,7 +87,6 @@ func (mf *MappedFile) ReadAt(offset int64, size int) ([]byte, error) {
 	}
 
 	if !mf.mapped {
-		// 如果没有映射，使用传统文件读取
 		data := make([]byte, end-offset)
 		n, err := mf.file.ReadAt(data, offset)
 		if err != nil {
@@ -120,12 +119,11 @@ func (mf *MappedFile) Sync() error {
 		return mf.file.Sync()
 	}
 
-	// 在macOS上使用msync系统调用
 	_, _, errno := syscall.Syscall(
 		syscall.SYS_MSYNC,
 		uintptr(unsafe.Pointer(&mf.data[0])),
 		uintptr(len(mf.data)),
-		uintptr(0x01), // MS_SYNC
+		uintptr(0x01),
 	)
 
 	if errno != 0 {
@@ -163,7 +161,18 @@ func (mf *MappedFile) AdviseSequential() error {
 		return nil
 	}
 
-	return madvise(mf.data, syscall.MADV_SEQUENTIAL)
+	_, _, errno := syscall.Syscall(
+		syscall.SYS_MADVISE,
+		uintptr(unsafe.Pointer(&mf.data[0])),
+		uintptr(len(mf.data)),
+		uintptr(2), // MADV_SEQUENTIAL
+	)
+
+	if errno != 0 {
+		return errno
+	}
+
+	return nil
 }
 
 // AdviseRandom 建议操作系统进行随机访问优化
@@ -172,20 +181,11 @@ func (mf *MappedFile) AdviseRandom() error {
 		return nil
 	}
 
-	return madvise(mf.data, syscall.MADV_RANDOM)
-}
-
-// madvise 内存访问建议
-func madvise(data []byte, advice int) error {
-	if len(data) == 0 {
-		return nil
-	}
-
 	_, _, errno := syscall.Syscall(
 		syscall.SYS_MADVISE,
-		uintptr(unsafe.Pointer(&data[0])),
-		uintptr(len(data)),
-		uintptr(advice),
+		uintptr(unsafe.Pointer(&mf.data[0])),
+		uintptr(len(mf.data)),
+		uintptr(1), // MADV_RANDOM
 	)
 
 	if errno != 0 {
@@ -218,7 +218,7 @@ func NewStreamReader(filePath string, bufferSize int) (*StreamReader, error) {
 	}
 
 	if bufferSize <= 0 {
-		bufferSize = 64 * 1024 // 默认64KB缓冲区
+		bufferSize = 64 * 1024
 	}
 
 	return &StreamReader{
@@ -250,19 +250,19 @@ func (sr *StreamReader) Read() ([]byte, int64, error) {
 	return data, currentOffset, nil
 }
 
-// Seek 跳转到指定位置
-func (sr *StreamReader) Seek(offset int64) error {
+func (sr *StreamReader) Seek(offset int64, whence int) (int64, error) {
 	if offset < 0 || offset > sr.fileSize {
-		return fmt.Errorf("seek offset out of range: %d", offset)
+		return 0, fmt.Errorf("seek offset out of range: %d", offset)
 	}
 
-	_, err := sr.file.Seek(offset, 0)
+	newOffset, err := sr.file.Seek(offset, whence)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	sr.offset = offset
-	return nil
+	sr.offset = newOffset
+
+	return newOffset, nil
 }
 
 // Close 关闭流式读取器

@@ -28,6 +28,7 @@ type Engine interface {
 	ApplyDirPatch(patchFile, targetDir string, verify bool, progress ProgressReporter) (interface{}, error)
 	ValidatePatch(patchFile string, progress ProgressReporter) (*ValidationResult, error)
 	GetPatchInfo(patchFile string) (*PatchInfo, error)
+	GetDirPatchInfo(patchFile string) (*DirPatchInfo, error)
 }
 
 // NewApp 创建新的应用程序实例

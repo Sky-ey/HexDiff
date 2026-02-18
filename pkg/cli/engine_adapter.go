@@ -215,6 +215,67 @@ func (ea *EngineAdapter) GetPatchInfo(patchFile string) (*PatchInfo, error) {
 	return info, nil
 }
 
+// GetDirPatchInfo 获取目录补丁信息
+func (ea *EngineAdapter) GetDirPatchInfo(patchFile string) (*DirPatchInfo, error) {
+	header, err := patch.GetDirPatchInfo(patchFile)
+	if err != nil {
+		return nil, err
+	}
+
+	stat, err := os.Stat(patchFile)
+	if err != nil {
+		return nil, err
+	}
+
+	dirPatch, err := ea.dirPatchSerializer.DeserializeDirPatch(patchFile)
+	if err != nil {
+		return nil, err
+	}
+
+	addedCount := 0
+	deletedCount := 0
+	modifiedCount := 0
+	unchangedCount := 0
+
+	var addedFiles []string
+	var deletedFiles []string
+	var modifiedFiles []string
+
+	for _, f := range dirPatch.Files {
+		switch f.Status {
+		case diff.StatusAdded:
+			addedCount++
+			addedFiles = append(addedFiles, f.RelativePath)
+		case diff.StatusDeleted:
+			deletedCount++
+			deletedFiles = append(deletedFiles, f.RelativePath)
+		case diff.StatusModified:
+			modifiedCount++
+			modifiedFiles = append(modifiedFiles, f.RelativePath)
+		case diff.StatusUnchanged:
+			unchangedCount++
+		}
+	}
+
+	info := &DirPatchInfo{
+		Version:          header.Version,
+		OldDir:           dirPatch.OldDir,
+		NewDir:           dirPatch.NewDir,
+		FileCount:        len(dirPatch.Files),
+		AddedFiles:       addedCount,
+		DeletedFiles:     deletedCount,
+		ModifiedFiles:    modifiedCount,
+		UnchangedFiles:   unchangedCount,
+		PatchSize:        stat.Size(),
+		CreatedAt:        time.Unix(header.Timestamp, 0),
+		AddedFileList:    addedFiles,
+		DeletedFileList:  deletedFiles,
+		ModifiedFileList: modifiedFiles,
+	}
+
+	return info, nil
+}
+
 // GenerateDirDiff 生成目录补丁
 func (ea *EngineAdapter) GenerateDirDiff(oldDir, newDir, outputFile string, recursive, ignoreHidden bool, ignorePatterns string, compress bool, progress ProgressReporter) (interface{}, error) {
 	progress.SetMessage("正在分析目录差异...")
@@ -236,7 +297,8 @@ func (ea *EngineAdapter) GenerateDirDiff(oldDir, newDir, outputFile string, recu
 		return nil, err
 	}
 
-	progress.SetCurrent(80)
+	totalBytes := result.TotalBytesToProcess()
+
 	progress.SetMessage("正在序列化补丁...")
 
 	oldBase := filepath.Base(oldDir)
@@ -246,7 +308,9 @@ func (ea *EngineAdapter) GenerateDirDiff(oldDir, newDir, outputFile string, recu
 		return nil, err
 	}
 
-	progress.SetCurrent(100)
+	if totalBytes > 0 {
+		progress.SetCurrent(10 + totalBytes)
+	}
 	progress.SetMessage("目录补丁生成完成")
 
 	return result, nil
@@ -292,11 +356,30 @@ func (ea *EngineAdapter) ApplyDirPatch(patchFile, targetDir string, verify bool,
 		return nil, err
 	}
 
-	progress.SetCurrent(30)
 	progress.SetMessage("正在应用目录补丁...")
+	progress.SetCurrent(30)
 
-	for i, filePatch := range dirPatch.Files {
-		progress.SetCurrent(int64(30 + (i*70)/len(dirPatch.Files)))
+	var totalBytes int64
+
+	for _, filePatch := range dirPatch.Files {
+		switch filePatch.Status {
+		case diff.StatusAdded, diff.StatusModified:
+			if filePatch.IsFullContent {
+				totalBytes += filePatch.Size
+			} else if len(filePatch.Delta) > 0 {
+				totalBytes += filePatch.DeltaSize
+			}
+		}
+	}
+
+	if totalBytes > 0 {
+		progress.SetTotal(10 + 30 + totalBytes)
+	}
+
+	var processedBytes int64
+
+	for _, filePatch := range dirPatch.Files {
+		var fileBytes int64
 
 		targetPath := filepath.Join(targetDir, filePatch.RelativePath)
 
@@ -311,8 +394,26 @@ func (ea *EngineAdapter) ApplyDirPatch(patchFile, targetDir string, verify bool,
 				if err := os.WriteFile(targetPath, filePatch.Delta, os.FileMode(filePatch.Mode)); err != nil {
 					return nil, fmt.Errorf("写入文件失败: %w", err)
 				}
+				fileBytes = filePatch.Size
 			} else if len(filePatch.Delta) > 0 {
-				// TODO: 应用二进制差异补丁
+				if filePatch.Status == diff.StatusAdded {
+					if err := os.WriteFile(targetPath, filePatch.Delta, os.FileMode(filePatch.Mode)); err != nil {
+						return nil, fmt.Errorf("写入文件失败: %w", err)
+					}
+					fileBytes = filePatch.Size
+				} else {
+					if _, err := os.Stat(targetPath); err == nil {
+						if err := ea.patchApplier.ApplyDelta(targetPath, filePatch.Delta, targetPath+".tmp"); err != nil {
+							return nil, fmt.Errorf("应用二进制差异补丁失败 %s: %w", filePatch.RelativePath, err)
+						}
+						if err := os.Rename(targetPath+".tmp", targetPath); err != nil {
+							return nil, fmt.Errorf("重命名文件失败 %s: %w", filePatch.RelativePath, err)
+						}
+						fileBytes = filePatch.DeltaSize
+					} else {
+						return nil, fmt.Errorf("源文件不存在: %s", filePatch.RelativePath)
+					}
+				}
 			}
 
 			os.Chtimes(targetPath, filePatch.GetMTime(), filePatch.GetMTime())
@@ -324,9 +425,15 @@ func (ea *EngineAdapter) ApplyDirPatch(patchFile, targetDir string, verify bool,
 				}
 			}
 		}
+
+		if fileBytes > 0 {
+			processedBytes += fileBytes
+			if totalBytes > 0 {
+				progress.SetCurrent(30 + processedBytes)
+			}
+		}
 	}
 
-	progress.SetCurrent(100)
 	progress.SetMessage("目录补丁应用完成")
 
 	return dirPatch, nil
