@@ -378,14 +378,6 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-// min 返回两个整数中的较小值
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func (a *Applier) ApplyDelta(sourceFilePath string, deltaData []byte, targetFilePath string) error {
 	serializer := NewSerializer(CompressionNone)
 	patchFile, err := serializer.DeserializeFromData(deltaData)

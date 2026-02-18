@@ -23,9 +23,9 @@ type App struct {
 type Engine interface {
 	GenerateSignature(inputFile, outputFile string, blockSize int, progress ProgressReporter) error
 	GeneratePatch(oldFile, newFile, outputFile, signature string, compress bool, progress ProgressReporter) error
-	GenerateDirDiff(oldDir, newDir, outputFile string, recursive, ignoreHidden bool, ignorePatterns string, compress bool, progress ProgressReporter) (interface{}, error)
+	GenerateDirDiff(oldDir, newDir, outputFile string, recursive, ignoreHidden bool, ignorePatterns string, compress bool, progress ProgressReporter) (any, error)
 	ApplyPatch(patchFile, targetFile, outputFile string, verify bool, progress ProgressReporter) error
-	ApplyDirPatch(patchFile, targetDir string, verify bool, progress ProgressReporter) (interface{}, error)
+	ApplyDirPatch(patchFile, targetDir string, verify bool, progress ProgressReporter) (any, error)
 	ValidatePatch(patchFile string, progress ProgressReporter) (*ValidationResult, error)
 	GetPatchInfo(patchFile string) (*PatchInfo, error)
 	GetDirPatchInfo(patchFile string) (*DirPatchInfo, error)

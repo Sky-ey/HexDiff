@@ -283,7 +283,7 @@ func (rm *RecoveryManager) cleanupOldBackups(fileName string) {
 
 	// 删除多余的备份
 	toDelete := len(backups) - rm.maxBackups
-	for i := 0; i < toDelete; i++ {
+	for i := range toDelete {
 		os.Remove(backups[i].path)
 	}
 }

@@ -47,7 +47,7 @@ type ConcurrentStats struct {
 
 // Job 任务接口
 type Job interface {
-	Execute() (interface{}, error)
+	Execute() (any, error)
 	GetID() string
 	GetPriority() int
 }
@@ -55,7 +55,7 @@ type Job interface {
 // Result 结果
 type Result struct {
 	JobID    string
-	Data     interface{}
+	Data     any
 	Error    error
 	Duration time.Duration
 }
@@ -326,11 +326,11 @@ func (cs *ConcurrentStats) String() string {
 type PriorityJob struct {
 	ID       string
 	Priority int
-	Handler  func() (interface{}, error)
+	Handler  func() (any, error)
 }
 
 // Execute 执行任务
-func (pj *PriorityJob) Execute() (interface{}, error) {
+func (pj *PriorityJob) Execute() (any, error) {
 	return pj.Handler()
 }
 
@@ -410,7 +410,7 @@ type BatchJob struct {
 }
 
 // Execute 执行批任务
-func (bj *BatchJob) Execute() (interface{}, error) {
+func (bj *BatchJob) Execute() (any, error) {
 	results := make([]Result, len(bj.Jobs))
 
 	for i, job := range bj.Jobs {
@@ -466,7 +466,7 @@ func NewWorkerPool(workerCount int) *WorkerPool {
 	}
 
 	// 创建工作协程
-	for i := 0; i < workerCount; i++ {
+	for i := range workerCount {
 		wp.workers[i] = &PoolWorker{
 			id:   i,
 			pool: wp,

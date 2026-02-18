@@ -277,7 +277,7 @@ func (ea *EngineAdapter) GetDirPatchInfo(patchFile string) (*DirPatchInfo, error
 }
 
 // GenerateDirDiff 生成目录补丁
-func (ea *EngineAdapter) GenerateDirDiff(oldDir, newDir, outputFile string, recursive, ignoreHidden bool, ignorePatterns string, compress bool, progress ProgressReporter) (interface{}, error) {
+func (ea *EngineAdapter) GenerateDirDiff(oldDir, newDir, outputFile string, recursive, ignoreHidden bool, ignorePatterns string, compress bool, progress ProgressReporter) (any, error) {
 	progress.SetMessage("正在分析目录差异...")
 	progress.SetCurrent(10)
 
@@ -342,7 +342,7 @@ func splitIgnorePatterns(patterns string) []string {
 		return nil
 	}
 	var result []string
-	for _, p := range strings.Split(patterns, ",") {
+	for p := range strings.SplitSeq(patterns, ",") {
 		p = strings.TrimSpace(p)
 		if p != "" {
 			result = append(result, p)
@@ -352,7 +352,7 @@ func splitIgnorePatterns(patterns string) []string {
 }
 
 // ApplyDirPatch 应用目录补丁
-func (ea *EngineAdapter) ApplyDirPatch(patchFile, targetDir string, verify bool, progress ProgressReporter) (interface{}, error) {
+func (ea *EngineAdapter) ApplyDirPatch(patchFile, targetDir string, verify bool, progress ProgressReporter) (any, error) {
 	progress.SetMessage("正在读取目录补丁...")
 	progress.SetCurrent(10)
 

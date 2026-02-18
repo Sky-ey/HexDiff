@@ -161,7 +161,7 @@ func (zc *ZstdCompressor) GetType() CompressionType {
 }
 
 // GetConfig 获取配置
-func (zc *ZstdCompressor) GetConfig() interface{} {
+func (zc *ZstdCompressor) GetConfig() any {
 	return zc.config
 }
 
@@ -277,7 +277,7 @@ func (zd *ZstdDecompressor) GetType() CompressionType {
 }
 
 // GetConfig 获取配置
-func (zd *ZstdDecompressor) GetConfig() interface{} {
+func (zd *ZstdDecompressor) GetConfig() any {
 	return zd.config
 }
 

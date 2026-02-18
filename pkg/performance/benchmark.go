@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -305,14 +306,14 @@ func (bs *BenchmarkSuite) benchmarkConcurrentProcessing(concurrencyLevel int) er
 	jobCount := 1000
 	jobs := make([]Job, jobCount)
 
-	for i := 0; i < jobCount; i++ {
+	for i := range jobCount {
 		jobs[i] = &PriorityJob{
 			ID:       fmt.Sprintf("job_%d", i),
 			Priority: i % 10,
-			Handler: func() (interface{}, error) {
+			Handler: func() (any, error) {
 				// 模拟计算密集型任务
 				sum := 0
-				for j := 0; j < 10000; j++ {
+				for j := range 10000 {
 					sum += j
 				}
 				return sum, nil
@@ -417,8 +418,9 @@ func (bs *BenchmarkSuite) benchmarkStreamProcessing(filePath string) error {
 
 // GenerateReport 生成性能报告
 func (bs *BenchmarkSuite) GenerateReport() string {
-	report := "HexDiff 性能基准测试报告\n"
-	report += "================================\n\n"
+	var report strings.Builder
+	report.WriteString("HexDiff 性能基准测试报告\n")
+	report.WriteString("================================\n\n")
 
 	// 按测试类型分组
 	ioTests := make([]BenchmarkResult, 0)
@@ -438,55 +440,55 @@ func (bs *BenchmarkSuite) GenerateReport() string {
 
 	// I/O性能报告
 	if len(ioTests) > 0 {
-		report += "I/O性能测试结果:\n"
-		report += "----------------\n"
+		report.WriteString("I/O性能测试结果:\n")
+		report.WriteString("----------------\n")
 		for _, result := range ioTests {
-			report += fmt.Sprintf("测试: %s\n", result.TestName)
-			report += fmt.Sprintf("  文件大小: %.2f MB\n", float64(result.FileSize)/(1024*1024))
-			report += fmt.Sprintf("  执行时间: %v\n", result.Duration)
-			report += fmt.Sprintf("  吞吐量: %.2f MB/s\n", result.Throughput)
-			report += fmt.Sprintf("  内存使用: %.2f MB\n", float64(result.MemoryUsage)/(1024*1024))
+			report.WriteString(fmt.Sprintf("测试: %s\n", result.TestName))
+			report.WriteString(fmt.Sprintf("  文件大小: %.2f MB\n", float64(result.FileSize)/(1024*1024)))
+			report.WriteString(fmt.Sprintf("  执行时间: %v\n", result.Duration))
+			report.WriteString(fmt.Sprintf("  吞吐量: %.2f MB/s\n", result.Throughput))
+			report.WriteString(fmt.Sprintf("  内存使用: %.2f MB\n", float64(result.MemoryUsage)/(1024*1024)))
 			if result.CacheHitRate > 0 {
-				report += fmt.Sprintf("  缓存命中率: %.2f%%\n", result.CacheHitRate)
+				report.WriteString(fmt.Sprintf("  缓存命中率: %.2f%%\n", result.CacheHitRate))
 			}
-			report += fmt.Sprintf("  状态: %s\n\n", getStatusString(result.Success))
+			report.WriteString(fmt.Sprintf("  状态: %s\n\n", getStatusString(result.Success)))
 		}
 	}
 
 	// 并发性能报告
 	if len(concurrentTests) > 0 {
-		report += "并发处理测试结果:\n"
-		report += "----------------\n"
+		report.WriteString("并发处理测试结果:\n")
+		report.WriteString("----------------\n")
 		for _, result := range concurrentTests {
-			report += fmt.Sprintf("测试: %s\n", result.TestName)
-			report += fmt.Sprintf("  任务数量: %d\n", result.FileSize)
-			report += fmt.Sprintf("  执行时间: %v\n", result.Duration)
-			report += fmt.Sprintf("  吞吐量: %.2f 任务/秒\n", result.Throughput)
-			report += fmt.Sprintf("  内存使用: %.2f MB\n", float64(result.MemoryUsage)/(1024*1024))
-			report += fmt.Sprintf("  状态: %s\n\n", getStatusString(result.Success))
+			report.WriteString(fmt.Sprintf("测试: %s\n", result.TestName))
+			report.WriteString(fmt.Sprintf("  任务数量: %d\n", result.FileSize))
+			report.WriteString(fmt.Sprintf("  执行时间: %v\n", result.Duration))
+			report.WriteString(fmt.Sprintf("  吞吐量: %.2f 任务/秒\n", result.Throughput))
+			report.WriteString(fmt.Sprintf("  内存使用: %.2f MB\n", float64(result.MemoryUsage)/(1024*1024)))
+			report.WriteString(fmt.Sprintf("  状态: %s\n\n", getStatusString(result.Success)))
 		}
 	}
 
 	// 流处理性能报告
 	if len(streamTests) > 0 {
-		report += "流处理测试结果:\n"
-		report += "----------------\n"
+		report.WriteString("流处理测试结果:\n")
+		report.WriteString("----------------\n")
 		for _, result := range streamTests {
-			report += fmt.Sprintf("测试: %s\n", result.TestName)
-			report += fmt.Sprintf("  文件大小: %.2f MB\n", float64(result.FileSize)/(1024*1024))
-			report += fmt.Sprintf("  执行时间: %v\n", result.Duration)
-			report += fmt.Sprintf("  吞吐量: %.2f MB/s\n", result.Throughput)
-			report += fmt.Sprintf("  内存使用: %.2f MB\n", float64(result.MemoryUsage)/(1024*1024))
+			report.WriteString(fmt.Sprintf("测试: %s\n", result.TestName))
+			report.WriteString(fmt.Sprintf("  文件大小: %.2f MB\n", float64(result.FileSize)/(1024*1024)))
+			report.WriteString(fmt.Sprintf("  执行时间: %v\n", result.Duration))
+			report.WriteString(fmt.Sprintf("  吞吐量: %.2f MB/s\n", result.Throughput))
+			report.WriteString(fmt.Sprintf("  内存使用: %.2f MB\n", float64(result.MemoryUsage)/(1024*1024)))
 			if result.CacheHitRate > 0 {
-				report += fmt.Sprintf("  缓存命中率: %.2f%%\n", result.CacheHitRate)
+				report.WriteString(fmt.Sprintf("  缓存命中率: %.2f%%\n", result.CacheHitRate))
 			}
-			report += fmt.Sprintf("  状态: %s\n\n", getStatusString(result.Success))
+			report.WriteString(fmt.Sprintf("  状态: %s\n\n", getStatusString(result.Success)))
 		}
 	}
 
 	// 性能总结
-	report += "性能总结:\n"
-	report += "--------\n"
+	report.WriteString("性能总结:\n")
+	report.WriteString("--------\n")
 
 	if len(ioTests) > 0 {
 		maxThroughput := 0.0
@@ -497,10 +499,10 @@ func (bs *BenchmarkSuite) GenerateReport() string {
 				bestTest = result.TestName
 			}
 		}
-		report += fmt.Sprintf("最佳I/O性能: %s (%.2f MB/s)\n", bestTest, maxThroughput)
+		report.WriteString(fmt.Sprintf("最佳I/O性能: %s (%.2f MB/s)\n", bestTest, maxThroughput))
 	}
 
-	return report
+	return report.String()
 }
 
 // Cleanup 清理测试文件

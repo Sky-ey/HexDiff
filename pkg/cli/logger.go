@@ -84,32 +84,32 @@ func (l *Logger) Close() error {
 }
 
 // Debug 输出调试信息
-func (l *Logger) Debug(format string, args ...interface{}) {
+func (l *Logger) Debug(format string, args ...any) {
 	l.log(LogLevelDebug, "DEBUG", format, args...)
 }
 
 // Info 输出信息
-func (l *Logger) Info(format string, args ...interface{}) {
+func (l *Logger) Info(format string, args ...any) {
 	l.log(LogLevelInfo, "INFO", format, args...)
 }
 
 // Warn 输出警告
-func (l *Logger) Warn(format string, args ...interface{}) {
+func (l *Logger) Warn(format string, args ...any) {
 	l.log(LogLevelWarn, "WARN", format, args...)
 }
 
 // Warning 输出警告（别名）
-func (l *Logger) Warning(format string, args ...interface{}) {
+func (l *Logger) Warning(format string, args ...any) {
 	l.Warn(format, args...)
 }
 
 // Error 输出错误
-func (l *Logger) Error(format string, args ...interface{}) {
+func (l *Logger) Error(format string, args ...any) {
 	l.log(LogLevelError, "ERROR", format, args...)
 }
 
 // Success 输出成功信息
-func (l *Logger) Success(format string, args ...interface{}) {
+func (l *Logger) Success(format string, args ...any) {
 	if l.colors {
 		l.logWithColor(LogLevelInfo, "SUCCESS", "\033[32m", format, args...)
 	} else {
@@ -118,13 +118,13 @@ func (l *Logger) Success(format string, args ...interface{}) {
 }
 
 // Fatal 输出致命错误并退出
-func (l *Logger) Fatal(format string, args ...interface{}) {
+func (l *Logger) Fatal(format string, args ...any) {
 	l.Error(format, args...)
 	os.Exit(1)
 }
 
 // log 内部日志方法
-func (l *Logger) log(level LogLevel, levelStr, format string, args ...interface{}) {
+func (l *Logger) log(level LogLevel, levelStr, format string, args ...any) {
 	if level < l.level {
 		return
 	}
@@ -146,7 +146,7 @@ func (l *Logger) log(level LogLevel, levelStr, format string, args ...interface{
 }
 
 // logWithColor 带颜色的日志输出
-func (l *Logger) logWithColor(level LogLevel, levelStr, color, format string, args ...interface{}) {
+func (l *Logger) logWithColor(level LogLevel, levelStr, color, format string, args ...any) {
 	if level < l.level {
 		return
 	}
@@ -237,47 +237,47 @@ func NewMultiLogger(loggers ...*Logger) *MultiLogger {
 }
 
 // Debug 输出调试信息到所有日志器
-func (ml *MultiLogger) Debug(format string, args ...interface{}) {
+func (ml *MultiLogger) Debug(format string, args ...any) {
 	for _, logger := range ml.loggers {
 		logger.Debug(format, args...)
 	}
 }
 
 // Info 输出信息到所有日志器
-func (ml *MultiLogger) Info(format string, args ...interface{}) {
+func (ml *MultiLogger) Info(format string, args ...any) {
 	for _, logger := range ml.loggers {
 		logger.Info(format, args...)
 	}
 }
 
 // Warn 输出警告到所有日志器
-func (ml *MultiLogger) Warn(format string, args ...interface{}) {
+func (ml *MultiLogger) Warn(format string, args ...any) {
 	for _, logger := range ml.loggers {
 		logger.Warn(format, args...)
 	}
 }
 
 // Warning 输出警告到所有日志器（别名）
-func (ml *MultiLogger) Warning(format string, args ...interface{}) {
+func (ml *MultiLogger) Warning(format string, args ...any) {
 	ml.Warn(format, args...)
 }
 
 // Error 输出错误到所有日志器
-func (ml *MultiLogger) Error(format string, args ...interface{}) {
+func (ml *MultiLogger) Error(format string, args ...any) {
 	for _, logger := range ml.loggers {
 		logger.Error(format, args...)
 	}
 }
 
 // Success 输出成功信息到所有日志器
-func (ml *MultiLogger) Success(format string, args ...interface{}) {
+func (ml *MultiLogger) Success(format string, args ...any) {
 	for _, logger := range ml.loggers {
 		logger.Success(format, args...)
 	}
 }
 
 // Fatal 输出致命错误到所有日志器并退出
-func (ml *MultiLogger) Fatal(format string, args ...interface{}) {
+func (ml *MultiLogger) Fatal(format string, args ...any) {
 	for _, logger := range ml.loggers {
 		logger.Error(format, args...)
 	}

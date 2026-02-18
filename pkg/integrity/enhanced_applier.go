@@ -115,7 +115,7 @@ func NewEnhancedApplier(config *EnhancedApplierConfig) *EnhancedApplier {
 }
 
 // ApplyPatchWithIntegrity 应用补丁并进行完整性验证
-func (ea *EnhancedApplier) ApplyPatchWithIntegrity(sourceFilePath, patchFilePath, targetFilePath string, patchData interface{}) (*EnhancedApplyResult, error) {
+func (ea *EnhancedApplier) ApplyPatchWithIntegrity(sourceFilePath, patchFilePath, targetFilePath string, patchData any) (*EnhancedApplyResult, error) {
 	ea.stats.StartTime = time.Now()
 	defer func() {
 		ea.stats.EndTime = time.Now()

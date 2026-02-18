@@ -882,6 +882,6 @@ func (c *DirDiffCommand) validateDirectory(path string) error {
 	return nil
 }
 
-func (c *DirDiffCommand) showDirDiffResult(result interface{}) {
+func (c *DirDiffCommand) showDirDiffResult(result any) {
 	c.app.logger.Info("目录差异统计:")
 }

@@ -92,8 +92,8 @@ func shouldIgnore(path string, patterns []string) bool {
 	for _, pattern := range patterns {
 		pattern = strings.TrimPrefix(pattern, "*")
 
-		if strings.HasPrefix(pattern, "*.") {
-			ext := strings.TrimPrefix(pattern, "*.")
+		if after, ok := strings.CutPrefix(pattern, "*."); ok {
+			ext := after
 			if strings.HasSuffix(base, "."+ext) || base == "."+ext {
 				return true
 			}
@@ -240,10 +240,7 @@ func ProcessDirDiff(result *DirDiffResult, diffEngine *Engine, config *DirDiffCo
 			if progress != nil {
 				totalBytes := result.TotalBytesToProcess()
 				if totalBytes > 0 {
-					percent := int(float64(current) / float64(totalBytes) * 100)
-					if percent > 100 {
-						percent = 100
-					}
+					percent := min(int(float64(current)/float64(totalBytes)*100), 100)
 					progress.SetProgress(percent)
 					progress.Message(fmt.Sprintf("处理中: %s / %s", formatBytes(current), formatBytes(totalBytes)))
 				}

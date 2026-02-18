@@ -175,10 +175,7 @@ func (r *OptimizedReader) readFromMmap(p []byte) (int, error) {
 	}
 
 	remaining := r.fileSize - r.filePos
-	toRead := int64(len(p))
-	if toRead > remaining {
-		toRead = remaining
-	}
+	toRead := min(int64(len(p)), remaining)
 
 	copy(p, r.mmapData[r.filePos:r.filePos+toRead])
 	r.filePos += toRead

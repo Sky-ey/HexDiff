@@ -67,10 +67,7 @@ func (rv *RealtimeVerifier) Write(data []byte) (int, error) {
 	for len(data) > 0 {
 		// 计算可以写入缓冲区的数据量
 		available := rv.bufferSize - len(rv.streamBuffer)
-		toWrite := len(data)
-		if toWrite > available {
-			toWrite = available
-		}
+		toWrite := min(len(data), available)
 
 		// 写入缓冲区
 		rv.streamBuffer = append(rv.streamBuffer, data[:toWrite]...)

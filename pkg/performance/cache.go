@@ -19,7 +19,7 @@ type LRUCache struct {
 // CacheEntry 缓存条目
 type CacheEntry struct {
 	Key        string
-	Value      interface{}
+	Value      any
 	AccessTime time.Time
 	Size       int64
 }
@@ -45,7 +45,7 @@ func NewLRUCache(capacity int) *LRUCache {
 }
 
 // Get 获取缓存值
-func (c *LRUCache) Get(key string) (interface{}, bool) {
+func (c *LRUCache) Get(key string) (any, bool) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -72,7 +72,7 @@ func (c *LRUCache) Get(key string) (interface{}, bool) {
 }
 
 // Put 设置缓存值
-func (c *LRUCache) Put(key string, value interface{}) {
+func (c *LRUCache) Put(key string, value any) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -133,7 +133,7 @@ func (c *LRUCache) evictOldest() {
 }
 
 // calculateSize 计算值的大小（简化实现）
-func (c *LRUCache) calculateSize(value interface{}) int64 {
+func (c *LRUCache) calculateSize(value any) int64 {
 	switch v := value.(type) {
 	case []byte:
 		return int64(len(v))
@@ -241,7 +241,7 @@ func NewMemoryPool() *MemoryPool {
 // createPool 创建指定大小的内存池
 func (mp *MemoryPool) createPool(size int) {
 	mp.pools[size] = &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make([]byte, size)
 		},
 	}
@@ -307,7 +307,7 @@ func NewBufferPool(size int) *BufferPool {
 	return &BufferPool{
 		size: size,
 		pool: &sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return make([]byte, size)
 			},
 		},

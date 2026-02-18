@@ -57,7 +57,7 @@ type CLIError struct {
 	Code      ErrorCode
 	Message   string
 	Cause     error
-	Context   map[string]interface{}
+	Context   map[string]any
 	Stack     []string
 	Timestamp string
 }
@@ -67,7 +67,7 @@ func NewCLIError(code ErrorCode, message string) *CLIError {
 	return &CLIError{
 		Code:      code,
 		Message:   message,
-		Context:   make(map[string]interface{}),
+		Context:   make(map[string]any),
 		Stack:     captureStack(),
 		Timestamp: getCurrentTimestamp(),
 	}
@@ -79,7 +79,7 @@ func NewCLIErrorWithCause(code ErrorCode, message string, cause error) *CLIError
 		Code:      code,
 		Message:   message,
 		Cause:     cause,
-		Context:   make(map[string]interface{}),
+		Context:   make(map[string]any),
 		Stack:     captureStack(),
 		Timestamp: getCurrentTimestamp(),
 	}
@@ -94,7 +94,7 @@ func (e *CLIError) Error() string {
 }
 
 // WithContext 添加上下文信息
-func (e *CLIError) WithContext(key string, value interface{}) *CLIError {
+func (e *CLIError) WithContext(key string, value any) *CLIError {
 	e.Context[key] = value
 	return e
 }
@@ -115,7 +115,7 @@ func (e *CLIError) GetCause() error {
 }
 
 // GetContext 获取上下文信息
-func (e *CLIError) GetContext() map[string]interface{} {
+func (e *CLIError) GetContext() map[string]any {
 	return e.Context
 }
 
@@ -377,32 +377,32 @@ func getCurrentTimestamp() string {
 // 预定义的错误创建函数
 
 // ErrInvalidArgumentf 创建无效参数错误
-func ErrInvalidArgumentf(format string, args ...interface{}) *CLIError {
+func ErrInvalidArgumentf(format string, args ...any) *CLIError {
 	return NewCLIError(ErrInvalidArgument, fmt.Sprintf(format, args...))
 }
 
 // ErrFileNotFoundf 创建文件未找到错误
-func ErrFileNotFoundf(format string, args ...interface{}) *CLIError {
+func ErrFileNotFoundf(format string, args ...any) *CLIError {
 	return NewCLIError(ErrFileNotFound, fmt.Sprintf(format, args...))
 }
 
 // ErrPermissionDeniedf 创建权限拒绝错误
-func ErrPermissionDeniedf(format string, args ...interface{}) *CLIError {
+func ErrPermissionDeniedf(format string, args ...any) *CLIError {
 	return NewCLIError(ErrPermissionDenied, fmt.Sprintf(format, args...))
 }
 
 // ErrPatchGenerationf 创建补丁生成错误
-func ErrPatchGenerationf(format string, args ...interface{}) *CLIError {
+func ErrPatchGenerationf(format string, args ...any) *CLIError {
 	return NewCLIError(ErrPatchGeneration, fmt.Sprintf(format, args...))
 }
 
 // ErrPatchApplicationf 创建补丁应用错误
-func ErrPatchApplicationf(format string, args ...interface{}) *CLIError {
+func ErrPatchApplicationf(format string, args ...any) *CLIError {
 	return NewCLIError(ErrPatchApplication, fmt.Sprintf(format, args...))
 }
 
 // ErrChecksumMismatchf 创建校验和不匹配错误
-func ErrChecksumMismatchf(format string, args ...interface{}) *CLIError {
+func ErrChecksumMismatchf(format string, args ...any) *CLIError {
 	return NewCLIError(ErrChecksumMismatch, fmt.Sprintf(format, args...))
 }
 

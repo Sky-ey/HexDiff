@@ -76,7 +76,7 @@ type Compressor interface {
 	GetType() CompressionType
 
 	// GetConfig 获取压缩配置
-	GetConfig() interface{}
+	GetConfig() any
 
 	// GetCompressionRatio 获取压缩比
 	GetCompressionRatio(originalSize, compressedSize int64) float64
@@ -94,7 +94,7 @@ type Decompressor interface {
 	GetType() CompressionType
 
 	// GetConfig 获取配置
-	GetConfig() interface{}
+	GetConfig() any
 
 	// ValidateData 验证压缩数据
 	ValidateData(data []byte) error

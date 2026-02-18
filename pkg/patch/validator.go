@@ -3,6 +3,7 @@ package patch
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 // Validator 补丁验证器
@@ -193,12 +194,13 @@ func (r *ValidationResult) String() string {
 		return fmt.Sprintf("补丁文件 %s 验证通过 ✅", r.PatchFilePath)
 	}
 
-	result := fmt.Sprintf("补丁文件 %s 验证失败 ❌\n问题:\n", r.PatchFilePath)
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("补丁文件 %s 验证失败 ❌\n问题:\n", r.PatchFilePath))
 	for i, issue := range r.Issues {
-		result += fmt.Sprintf("  %d. %s\n", i+1, issue)
+		result.WriteString(fmt.Sprintf("  %d. %s\n", i+1, issue))
 	}
 
-	return result
+	return result.String()
 }
 
 // HasIssues 检查是否有问题

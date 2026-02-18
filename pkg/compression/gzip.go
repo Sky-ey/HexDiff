@@ -81,7 +81,7 @@ func (gc *GzipCompressor) GetType() CompressionType {
 }
 
 // GetConfig 获取压缩配置
-func (gc *GzipCompressor) GetConfig() interface{} {
+func (gc *GzipCompressor) GetConfig() any {
 	return gc.config
 }
 
@@ -181,7 +181,7 @@ func (gd *GzipDecompressor) GetType() CompressionType {
 }
 
 // GetConfig 获取配置
-func (gd *GzipDecompressor) GetConfig() interface{} {
+func (gd *GzipDecompressor) GetConfig() any {
 	return gd.config
 }
 

@@ -69,7 +69,7 @@ func (lc *LZ4Compressor) GetType() CompressionType {
 }
 
 // GetConfig 获取压缩配置
-func (lc *LZ4Compressor) GetConfig() interface{} {
+func (lc *LZ4Compressor) GetConfig() any {
 	return lc.config
 }
 
@@ -161,7 +161,7 @@ func (ld *LZ4Decompressor) GetType() CompressionType {
 }
 
 // GetConfig 获取配置
-func (ld *LZ4Decompressor) GetConfig() interface{} {
+func (ld *LZ4Decompressor) GetConfig() any {
 	return ld.config
 }
 

@@ -331,10 +331,7 @@ func (sv *StreamVerifier) Write(data []byte) (int, error) {
 	for len(data) > 0 {
 		// 计算当前可以写入缓冲区的数据量
 		available := sv.bufferSize - len(sv.buffer)
-		toWrite := len(data)
-		if toWrite > available {
-			toWrite = available
-		}
+		toWrite := min(len(data), available)
 
 		// 写入缓冲区
 		sv.buffer = append(sv.buffer, data[:toWrite]...)

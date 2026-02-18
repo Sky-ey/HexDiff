@@ -57,7 +57,7 @@ type PatchMetadata struct {
 	} `json:"compatibility"`
 
 	// 自定义属性
-	CustomAttributes map[string]interface{} `json:"custom_attributes,omitempty"`
+	CustomAttributes map[string]any `json:"custom_attributes,omitempty"`
 
 	// 验证信息
 	Verification struct {
@@ -87,7 +87,7 @@ func (mm *MetadataManager) CreateMetadata(patchPath string) *PatchMetadata {
 		Version:          "1.0.0",
 		CreatedAt:        time.Now(),
 		CreatedBy:        getCurrentUser(),
-		CustomAttributes: make(map[string]interface{}),
+		CustomAttributes: make(map[string]any),
 	}
 
 	// 设置默认兼容性信息
@@ -334,15 +334,15 @@ func (metadata *PatchMetadata) SetPerformanceInfo(generationTime, compressionTim
 }
 
 // AddCustomAttribute 添加自定义属性
-func (metadata *PatchMetadata) AddCustomAttribute(key string, value interface{}) {
+func (metadata *PatchMetadata) AddCustomAttribute(key string, value any) {
 	if metadata.CustomAttributes == nil {
-		metadata.CustomAttributes = make(map[string]interface{})
+		metadata.CustomAttributes = make(map[string]any)
 	}
 	metadata.CustomAttributes[key] = value
 }
 
 // GetCustomAttribute 获取自定义属性
-func (metadata *PatchMetadata) GetCustomAttribute(key string) (interface{}, bool) {
+func (metadata *PatchMetadata) GetCustomAttribute(key string) (any, bool) {
 	if metadata.CustomAttributes == nil {
 		return nil, false
 	}
