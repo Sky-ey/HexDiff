@@ -87,7 +87,7 @@ func (s *Signature) FindBlock(hash uint64, data []byte) *Block {
 
 	// 查找校验和匹配的块
 	for i := range blocks {
-		if blocks[i].Checksum == checksum {
+		if blocks[i].Size == len(data) && blocks[i].Checksum == checksum {
 			return &blocks[i]
 		}
 	}

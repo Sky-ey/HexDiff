@@ -145,10 +145,13 @@ func (e *Engine) GenerateDelta(oldFilePath, newFilePath string) (*Delta, error) 
 
 // generateDeltaWithRollingHash 使用滚动哈希生成差异
 func (e *Engine) generateDeltaWithRollingHash(newFile *os.File, signature *Signature, delta *Delta) error {
-	rollingHash := hexhash.NewRollingHash(e.config.WindowSize)
-	buffer := make([]byte, e.config.BlockSize)
-	var fileOffset int64 = 0
-	var unmatchedStart int64 = 0
+	window := make([]byte, e.config.BlockSize)
+	n, err := io.ReadFull(newFile, window)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return NewDiffError("read new file", "", err)
+	}
+
+	var unmatchedStart int64
 	var unmatchedData []byte
 
 	// 创建文件哈希器
@@ -156,103 +159,174 @@ func (e *Engine) generateDeltaWithRollingHash(newFile *os.File, signature *Signa
 	if e.config.EnableSHA256 {
 		fileHasher = sha256.New()
 	}
+	if fileHasher != nil && n > 0 {
+		fileHasher.Write(window[:n])
+	}
+
+	if n < e.config.BlockSize {
+		e.processTailData(delta, signature, window[:n], 0, &unmatchedStart, &unmatchedData)
+		e.flushInsert(delta, unmatchedStart, unmatchedData)
+		e.setDeltaChecksum(delta, fileHasher)
+		return nil
+	}
+
+	basePow := calculateBasePow(e.config.BlockSize)
+	windowHash := hexhash.FastHash(window)
+	windowStart := int64(0)
+	windowIndex := 0
+	oneByte := make([]byte, 1)
 
 	for {
-		n, err := newFile.Read(buffer)
+		var matchedBlock *Block
+		if _, exists := signature.Blocks[windowHash]; exists {
+			matchedBlock = signature.FindBlock(windowHash, orderedWindow(window, windowIndex))
+		}
+
+		if matchedBlock != nil {
+			e.flushInsert(delta, unmatchedStart, unmatchedData)
+			unmatchedData = unmatchedData[:0]
+			delta.AddOperation(Operation{
+				Type:      OpCopy,
+				Offset:    windowStart,
+				Size:      matchedBlock.Size,
+				SrcOffset: matchedBlock.Offset,
+			})
+
+			windowStart += int64(matchedBlock.Size)
+			n, err = io.ReadFull(newFile, window)
+			windowIndex = 0
+			if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+				return NewDiffError("read new file", "", err)
+			}
+			if fileHasher != nil && n > 0 {
+				fileHasher.Write(window[:n])
+			}
+			if n < e.config.BlockSize {
+				e.processTailData(delta, signature, window[:n], windowStart, &unmatchedStart, &unmatchedData)
+				break
+			}
+			windowHash = hexhash.FastHash(window)
+			continue
+		}
+
+		oldByte := window[windowIndex]
+		e.appendUnmatchedByte(oldByte, windowStart, &unmatchedStart, &unmatchedData)
+
+		n, err = newFile.Read(oneByte)
 		if err != nil && err != io.EOF {
 			return NewDiffError("read new file", "", err)
 		}
-
 		if n == 0 {
+			e.appendRemainingWindow(window, windowIndex, windowStart+1, &unmatchedStart, &unmatchedData)
 			break
 		}
-
-		blockData := buffer[:n]
-
-		// 更新文件哈希
 		if fileHasher != nil {
-			fileHasher.Write(blockData)
+			fileHasher.Write(oneByte[:n])
 		}
 
-		// 处理当前块
-		var _ *hexhash.RollingHash = rollingHash
-		matched := e.processBlock(blockData, fileOffset, signature, delta, &unmatchedStart, &unmatchedData)
-
-		if !matched {
-			// 如果没有匹配，将数据添加到未匹配缓冲区
-			unmatchedData = append(unmatchedData, blockData...)
-		}
-
-		fileOffset += int64(n)
-
-		if err == io.EOF {
-			break
-		}
+		windowHash = rollBlockHash(windowHash, oldByte, oneByte[0], basePow)
+		window[windowIndex] = oneByte[0]
+		windowIndex = (windowIndex + 1) % e.config.BlockSize
+		windowStart++
 	}
 
-	// 处理剩余的未匹配数据
-	if len(unmatchedData) > 0 {
-		dataCopy := make([]byte, len(unmatchedData))
-		copy(dataCopy, unmatchedData)
-		delta.AddOperation(Operation{
-			Type:   OpInsert,
-			Offset: unmatchedStart,
-			Size:   len(unmatchedData),
-			Data:   dataCopy,
-		})
-	}
+	e.flushInsert(delta, unmatchedStart, unmatchedData)
+	e.setDeltaChecksum(delta, fileHasher)
+	return nil
+}
 
-	// 设置目标文件校验和
+func calculateBasePow(blockSize int) uint64 {
+	basePow := uint64(1)
+	for i := 0; i < blockSize-1; i++ {
+		basePow = (basePow * hexhash.RollingHashBase) % hexhash.RollingHashMod
+	}
+	return basePow
+}
+
+func rollBlockHash(current uint64, oldByte, newByte byte, basePow uint64) uint64 {
+	removed := (uint64(oldByte) * basePow) % hexhash.RollingHashMod
+	next := (current + hexhash.RollingHashMod - removed) % hexhash.RollingHashMod
+	next = (next*hexhash.RollingHashBase + uint64(newByte)) % hexhash.RollingHashMod
+	return next
+}
+
+func orderedWindow(window []byte, startIndex int) []byte {
+	if startIndex == 0 {
+		return window
+	}
+	ordered := make([]byte, 0, len(window))
+	ordered = append(ordered, window[startIndex:]...)
+	ordered = append(ordered, window[:startIndex]...)
+	return ordered
+}
+
+func (e *Engine) processTailData(delta *Delta, signature *Signature, data []byte, offset int64, unmatchedStart *int64, unmatchedData *[]byte) {
+	if len(data) == 0 {
+		return
+	}
+	blockHash := hexhash.FastHash(data)
+	if _, exists := signature.Blocks[blockHash]; exists {
+		if matchedBlock := signature.FindBlock(blockHash, data); matchedBlock != nil {
+			e.flushInsert(delta, *unmatchedStart, *unmatchedData)
+			*unmatchedData = (*unmatchedData)[:0]
+			delta.AddOperation(Operation{
+				Type:      OpCopy,
+				Offset:    offset,
+				Size:      matchedBlock.Size,
+				SrcOffset: matchedBlock.Offset,
+			})
+			return
+		}
+	}
+	e.appendUnmatchedBytes(data, offset, unmatchedStart, unmatchedData)
+}
+
+func (e *Engine) appendUnmatchedByte(b byte, offset int64, unmatchedStart *int64, unmatchedData *[]byte) {
+	if len(*unmatchedData) == 0 {
+		*unmatchedStart = offset
+	}
+	*unmatchedData = append(*unmatchedData, b)
+}
+
+func (e *Engine) appendUnmatchedBytes(data []byte, offset int64, unmatchedStart *int64, unmatchedData *[]byte) {
+	if len(data) == 0 {
+		return
+	}
+	if len(*unmatchedData) == 0 {
+		*unmatchedStart = offset
+	}
+	*unmatchedData = append(*unmatchedData, data...)
+}
+
+func (e *Engine) appendRemainingWindow(window []byte, startIndex int, offset int64, unmatchedStart *int64, unmatchedData *[]byte) {
+	if startIndex+1 < len(window) {
+		e.appendUnmatchedBytes(window[startIndex+1:], offset, unmatchedStart, unmatchedData)
+	}
+	if startIndex > 0 {
+		nextOffset := offset + int64(len(window)-startIndex-1)
+		e.appendUnmatchedBytes(window[:startIndex], nextOffset, unmatchedStart, unmatchedData)
+	}
+}
+
+func (e *Engine) flushInsert(delta *Delta, unmatchedStart int64, unmatchedData []byte) {
+	if len(unmatchedData) == 0 {
+		return
+	}
+	dataCopy := make([]byte, len(unmatchedData))
+	copy(dataCopy, unmatchedData)
+	delta.AddOperation(Operation{
+		Type:   OpInsert,
+		Offset: unmatchedStart,
+		Size:   len(unmatchedData),
+		Data:   dataCopy,
+	})
+}
+
+func (e *Engine) setDeltaChecksum(delta *Delta, fileHasher hash.Hash) {
 	if fileHasher != nil {
 		checksumSlice := fileHasher.Sum(nil)
 		copy(delta.Checksum[:], checksumSlice)
 	}
-
-	return nil
-}
-
-// processBlock 处理单个数据块
-func (e *Engine) processBlock(blockData []byte, offset int64, signature *Signature, delta *Delta, unmatchedStart *int64, unmatchedData *[]byte) bool {
-	// 计算块哈希
-	blockHash := hexhash.FastHash(blockData)
-
-	// 查找匹配的块
-	matchedBlock := signature.FindBlock(blockHash, blockData)
-
-	if matchedBlock != nil {
-		// 找到匹配，先处理未匹配的数据
-		if len(*unmatchedData) > 0 {
-			dataCopy := make([]byte, len(*unmatchedData))
-			copy(dataCopy, *unmatchedData)
-			delta.AddOperation(Operation{
-				Type:   OpInsert,
-				Offset: *unmatchedStart,
-				Size:   len(*unmatchedData),
-				Data:   dataCopy,
-			})
-			*unmatchedData = (*unmatchedData)[:0] // 清空缓冲区
-		}
-
-		// 添加复制操作
-		delta.AddOperation(Operation{
-			Type:      OpCopy,
-			Offset:    offset,
-			Size:      matchedBlock.Size,
-			SrcOffset: matchedBlock.Offset,
-		})
-
-		// 更新未匹配数据的起始位置
-		*unmatchedStart = offset + int64(matchedBlock.Size)
-
-		return true
-	}
-
-	// 没有找到匹配
-	if len(*unmatchedData) == 0 {
-		*unmatchedStart = offset
-	}
-
-	return false
 }
 
 // GetConfig 获取引擎配置
